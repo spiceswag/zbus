@@ -1251,7 +1251,14 @@ impl<'a> SignalStream<'a> {
     fn filter(&mut self, msg: &Message) -> Result<bool> {
         let header = msg.header();
         let sender = header.sender();
-        if sender == self.src_unique_name.as_ref() {
+        if sender
+            == self
+                .src_unique_name
+                .as_ref()
+                .cloned()
+                .map(BusName::Unique)
+                .as_ref()
+        {
             return Ok(true);
         }
 

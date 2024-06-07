@@ -220,13 +220,13 @@ impl<'m> MatchRule<'m> {
 
         // Then check sender.
         if let Some(sender) = self.sender() {
-            match sender {
-                BusName::Unique(name) if Some(name) != hdr.sender() => {
+            match (sender, hdr.sender()) {
+                (BusName::Unique(name), Some(BusName::Unique(sender))) if name != sender => {
                     return Ok(false);
                 }
-                BusName::Unique(_) => (),
+                (BusName::Unique(_), _) => (),
                 // We can't match against a well-known name.
-                BusName::WellKnown(_) => (),
+                (BusName::WellKnown(_), _) => (),
             }
         }
 

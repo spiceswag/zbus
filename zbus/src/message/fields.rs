@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use static_assertions::assert_impl_all;
 use std::num::NonZeroU32;
-use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
+use zbus_names::{BusName, ErrorName, InterfaceName, MemberName};
 use zvariant::{ObjectPath, Signature, Type};
 
 use crate::{
@@ -193,7 +193,7 @@ impl QuickFields {
         self.destination.read(msg.data())
     }
 
-    pub fn sender<'m>(&self, msg: &'m Message) -> Option<UniqueName<'m>> {
+    pub fn sender<'m>(&self, msg: &'m Message) -> Option<BusName<'m>> {
         self.sender.read(msg.data())
     }
 

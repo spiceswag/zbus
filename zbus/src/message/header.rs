@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use static_assertions::assert_impl_all;
-use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
+use zbus_names::{BusName, ErrorName, InterfaceName, MemberName};
 use zvariant::{
     serialized::{self, Context},
     Endian, ObjectPath, Signature, Type as VariantType,
@@ -338,7 +338,7 @@ impl<'m> Header<'m> {
     }
 
     /// Unique name of the sending connection.
-    pub fn sender(&self) -> Option<&UniqueName<'m>> {
+    pub fn sender(&self) -> Option<&BusName<'m>> {
         get_field!(self, Sender)
     }
 

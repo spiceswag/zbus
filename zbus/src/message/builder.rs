@@ -6,7 +6,7 @@ use std::{
 use zvariant::OwnedFd;
 
 use enumflags2::BitFlags;
-use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, UniqueName};
+use zbus_names::{BusName, ErrorName, InterfaceName, MemberName};
 use zvariant::{serialized, Endian};
 
 use crate::{
@@ -108,7 +108,7 @@ impl<'a> Builder<'a> {
     /// Set the unique name of the sending connection.
     pub fn sender<'s: 'a, S>(mut self, sender: S) -> Result<Self>
     where
-        S: TryInto<UniqueName<'s>>,
+        S: TryInto<BusName<'s>>,
         S::Error: Into<Error>,
     {
         self.header

@@ -87,7 +87,7 @@ pub(crate) enum Field<'f> {
     /// The name of the connection this message is intended for.
     Destination(BusName<'f>),
     /// Unique name of the sending connection.
-    Sender(UniqueName<'f>),
+    Sender(BusName<'f>),
     /// The signature of the message body.
     Signature(Signature<'f>),
     /// The number of Unix file descriptors that accompany the message.
