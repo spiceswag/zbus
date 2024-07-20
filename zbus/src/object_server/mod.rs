@@ -1,7 +1,7 @@
 //! The object server API.
 
 use event_listener::{Event, EventListener};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::Entry, HashMap},
     fmt::Write,
@@ -767,9 +767,19 @@ impl ObjectServer {
                     async move {
                         let server = connection.object_server();
                         let hdr = msg.header();
-                        server
+                        if let Err(e) = server
                             .dispatch_call_to_iface(iface, &connection, &msg, &hdr)
                             .await
+                        {
+                            // When not spawning a task, this error is handled by the caller.
+                            debug!("Returning error: {}", e);
+                            if let Err(e) = connection.reply_dbus_error(&hdr, e).await {
+                                debug!(
+                                    "Error dispatching message. Message: {:?}, error: {:?}",
+                                    msg, e
+                                );
+                            }
+                        }
                     }
                     .instrument(trace_span!("{}", task_name)),
                     &task_name,
@@ -856,6 +866,11 @@ impl<R> ResponseDispatchNotifier<R> {
             listener,
         )
     }
+
+    /// Get the response.
+    pub fn response(&self) -> &R {
+        &self.response
+    }
 }
 
 impl<R> Serialize for ResponseDispatchNotifier<R>
@@ -867,6 +882,21 @@ where
         S: serde::Serializer,
     {
         self.response.serialize(serializer)
+    }
+}
+
+impl<'de, R> Deserialize<'de> for ResponseDispatchNotifier<R>
+where
+    R: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self {
+            response: R::deserialize(deserializer)?,
+            event: None,
+        })
     }
 }
 

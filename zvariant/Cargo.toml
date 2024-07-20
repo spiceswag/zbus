@@ -1,6 +1,6 @@
 [package]
 name = "zvariant"
-version = "4.1.1"
+version = "4.2.0"
 authors = ["Zeeshan Ali Khan <zeeshanak@gnome.org>"]
 edition = "2021"
 rust-version = "1.75"
@@ -25,7 +25,7 @@ endi = "1.1.0"
 serde = { version = "1.0.200", features = ["derive"] }
 arrayvec = { version = "0.7.4", features = ["serde"], optional = true }
 enumflags2 = { version = "0.7.9", features = ["serde"], optional = true }
-zvariant_derive = { version = "=4.1.1", path = "../zvariant_derive" }
+zvariant_derive = { version = "=4.2.0", path = "../zvariant_derive" }
 serde_bytes = { version = "0.11.14", optional = true }
 static_assertions = "1.1.0"
 uuid = { version = "1.8.0", features = ["serde"], optional = true }
@@ -34,6 +34,7 @@ time = { version = "0.3.36", features = ["serde"], optional = true }
 chrono = { version = "0.4.38", features = [
     "serde",
 ], default-features = false, optional = true }
+heapless = { version = "0.8.0", features = ["serde"], optional = true }
 
 [dev-dependencies]
 serde_json = "1.0.116"
@@ -41,7 +42,7 @@ serde_repr = "0.1.19"
 # If you want to avoid compiling glib even when compiling tests or examples, comment out the glib
 # dev-dependency. Dev-dependencies can't be made optional, and hence can't be disabled with a
 # feature so you have to do it manually. Also, don't enable the gvariant default feature.
-glib = "0.19.5"
+glib = "0.20.0"
 rand = "0.8.5"
 criterion = "0.5.1"
 

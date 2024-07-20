@@ -1,9 +1,11 @@
-# Writing a server interface
+# Writing a service interface
 
-In this chapter, we are going to implement a server with a method "SayHello", to greet back the
+<!-- toc -->
+
+In this chapter, we are going to implement a service with a method "SayHello", to greet back the
 calling client.
 
-We will first discuss the need to associate a service name with the server. Then we are going to
+We will first discuss the need to associate a service name with the service. Then we are going to
 manually handle incoming messages using the low-level API. Finally, we will present the
 `ObjectServer` higher-level API and some of its more advanced concepts.
 
@@ -37,12 +39,12 @@ We can check our service is running and is associated with the service name:
 
 ```bash
 $ busctl --user list | grep zbus
-org.zbus.MyGreeter                             412452 server            elmarco :1.396        user@1000.service -       -
+org.zbus.MyGreeter                             412452 service           elmarco :1.396        user@1000.service -       -
 ```
 
 ### 🖐 Hang on
 
-This example is not handling incoming messages yet. Any attempt to call the server will time out
+This example is not handling incoming messages yet. Any attempt to call the service will time out
 (including the shell completion!).
 
 ## Handling low-level messages
@@ -124,7 +126,7 @@ impl Greeter {
 #[tokio::main]
 async fn main() -> Result<()> {
     let connection = Connection::session().await?;
-    // setup the server
+    // setup the object server
     connection
         .object_server()
         .at("/org/zbus/MyGreeter", Greeter)
@@ -288,6 +290,16 @@ org.zbus.MyGreeter1                 interface -         -             -
 .GreetedEveryone                    signal    -         -             -
 ```
 
+### Trait-bounds for property values
+
+If you use custom types for property values, you might get a compile error for missing
+`TryFrom<zvariant::Value<'_>>` and/or `TryFrom<OwnedValue>` implementations. This is because
+properties are always sent as Variants on the bus, so you need to implement these conversions for
+your custom types.
+
+Not to worry though, the `zvariant` crate provides a [`Value`] and [`OwnedValue`] derive macro to
+implement these conversions for you.
+
 ### Method errors
 
 There are two possibilities for the return value of interface methods. The first is for infallible
@@ -353,8 +365,83 @@ iface.greeter_name_changed(iface_ref.signal_context()).await?;
 # }
 ```
 
+## Proxy generation
+
+`interface` macro can also generate the client-side proxy code for you. It utilizes the [`proxy`]
+macro behind the scenes to achieve this. Here is how to use it:
+
+```rust
+use zbus::interface;
+
+struct Greeter {
+    name: String
+}
+
+#[interface(
+    name = "org.zbus.MyGreeter.WithProxy",
+    // Specifying the `proxy` attribute instructs `interface` to generate the
+    // client-side proxy. You can specify proxy-specific attributes
+    // (e.g `gen_blocking) here. All the attributes that are common between
+    // `proxy` and `interface` macros (e.g `name`) are automtically forwarded to
+    // the `proxy` macro.
+    proxy(
+        gen_blocking = false,
+        default_path = "/org/zbus/MyGreeter/WithProxy",
+        default_service = "org.zbus.MyGreeter.WithProxy",
+    ),
+)]
+impl Greeter {
+    #[zbus(property)]
+    async fn greeter_name(&self) -> String {
+        self.name.clone()
+    }
+
+    #[zbus(proxy(no_reply))]
+    async fn whatever(&self) {
+        println!("Whatever!");
+    }
+}
+
+# #[tokio::main]
+# async fn main() -> zbus::Result<()> {
+
+let greeter = Greeter { name: "GreeterName".to_string() };
+let connection = zbus::connection::Builder::session()?
+        .name("org.zbus.MyGreeter.WithProxy")?
+        .serve_at("/org/zbus/MyGreeter/WithProxy", greeter)?
+        .build()
+        .await?;
+let proxy = GreeterProxy::new(&connection).await?;
+assert_eq!(proxy.greeter_name().await?, "GreeterName");
+proxy.whatever().await?;
+
+# Ok(())
+# }
+```
+
+### Known Limitations
+
+While it's extremely useful to be able to generate the client-side proxy code directly from
+`interface` as it allows you to avoid duplicating code, there are some limitations to be aware of:
+
+* The trait bounds of the `proxy` macro methods' arguments and return value, now also apply to the
+  `interface` methods. For example, when only generating the service-side code, the method return
+  values need to implement `serde::Serialize` but when generating the client-side proxy code, the
+  method return values need to implement `serde::DeserializeOwned` as well.
+* Reference types in return values of `interface` methods won't work. As you may have noticed,
+  unlike the previous examples the `greeter_name` method in the example above returns a `String`
+  instead of a `&str`. This is because the methods in the `proxy` macro do not support reference
+  type to be returned from its methods.
+* Methods returning [`object_server::ResponseDispatchNotifier`] wrapper type will do the same for
+  proxy as well.
+* Only `interface` macro supports this feature, while the deprecated `dbus_interface` macro does
+  not. Still haven't switched to `interface` and want to use this feature? Time to switch!
+
 [D-Bus concepts]: concepts.html#bus-name--service-name
 [didoc]: https://docs.rs/zbus/4/zbus/attr.interface.html
+[`Value`]: https://docs.rs/zvariant/4/zvariant/derive.Value.html
+[`OwnedValue`]: https://docs.rs/zvariant/4/zvariant/derive.OwnedValue.html
 [`zbus::DBusError`]:https://docs.rs/zbus/4/zbus/trait.DBusError.html
 [`zbus::fdo::Error`]: https://docs.rs/zbus/4/zbus/fdo/enum.Error.html
 [`zbus::fdo::Error::UnknownProperty`]: https://docs.rs/zbus/4/zbus/fdo/enum.Error.html#variant.UnknownProperty
+[`proxy`]: https://docs.rs/zbus/4/zbus/attr.proxy.html

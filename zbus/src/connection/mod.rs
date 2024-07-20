@@ -21,9 +21,10 @@ use futures_core::Future;
 use futures_util::StreamExt;
 
 use crate::{
-    async_lock::Mutex,
+    async_lock::{Mutex, Semaphore, SemaphorePermit},
     blocking,
     fdo::{self, ConnectionCredentials, RequestNameFlags, RequestNameReply},
+    is_flatpak,
     message::{Flags, Message, Type},
     proxy::CacheProperties,
     DBusError, Error, Executor, MatchRule, MessageStream, ObjectServer, OwnedGuid, OwnedMatchRule,
@@ -351,6 +352,8 @@ impl Connection {
         M::Error: Into<Error>,
         B: serde::ser::Serialize + zvariant::DynamicType,
     {
+        let _permit = acquire_serial_num_semaphore().await;
+
         let mut builder = Message::method(path, method_name)?;
         if let Some(sender) = self.unique_name() {
             builder = builder.sender(sender)?
@@ -404,6 +407,8 @@ impl Connection {
         M::Error: Into<Error>,
         B: serde::ser::Serialize + zvariant::DynamicType,
     {
+        let _permit = acquire_serial_num_semaphore().await;
+
         let mut b = Message::signal(path, interface, signal_name)?;
         if let Some(sender) = self.unique_name() {
             b = b.sender(sender)?;
@@ -424,6 +429,8 @@ impl Connection {
     where
         B: serde::ser::Serialize + zvariant::DynamicType,
     {
+        let _permit = acquire_serial_num_semaphore().await;
+
         let mut b = Message::method_reply(call)?;
         if let Some(sender) = self.unique_name() {
             b = b.sender(sender)?;
@@ -442,6 +449,8 @@ impl Connection {
         E: TryInto<ErrorName<'e>>,
         E::Error: Into<Error>,
     {
+        let _permit = acquire_serial_num_semaphore().await;
+
         let mut b = Message::method_error(call, error_name)?;
         if let Some(sender) = self.unique_name() {
             b = b.sender(sender)?;
@@ -459,6 +468,8 @@ impl Connection {
         call: &zbus::message::Header<'_>,
         err: impl DBusError,
     ) -> Result<()> {
+        let _permit = acquire_serial_num_semaphore().await;
+
         let m = err.create_reply(call)?;
         self.send(&m).await
     }
@@ -963,20 +974,25 @@ impl Connection {
                     }) {
                         if let Some(conn) = weak_conn.upgrade() {
                             let hdr = msg.header();
-                            match hdr.destination() {
-                                // Unique name is already checked by the match rule.
-                                Some(BusName::Unique(_)) | None => (),
-                                Some(BusName::WellKnown(dest)) => {
-                                    let names = conn.inner.registered_names.lock().await;
-                                    // destination doesn't matter if no name has been registered
-                                    // (probably means name it's registered through external means).
-                                    if !names.is_empty() && !names.contains_key(dest) {
-                                        trace!(
-                                            "Got a method call for a different destination: {}",
-                                            dest
-                                        );
+                            // If we're connected to a bus, skip the destination check as the
+                            // server will only send us method calls destined to us.
+                            if !conn.is_bus() {
+                                match hdr.destination() {
+                                    // Unique name is already checked by the match rule.
+                                    Some(BusName::Unique(_)) | None => (),
+                                    Some(BusName::WellKnown(dest)) => {
+                                        let names = conn.inner.registered_names.lock().await;
+                                        // destination doesn't matter if no name has been registered
+                                        // (probably means the name is registered through external
+                                        // means).
+                                        if !names.is_empty() && !names.contains_key(dest) {
+                                            trace!(
+                                                "Got a method call for a different destination: {}",
+                                                dest
+                                            );
 
-                                        continue;
+                                            continue;
+                                        }
                                     }
                                 }
                             }
@@ -1271,6 +1287,20 @@ enum NameStatus {
     Owner(#[allow(unused)] Option<Task<()>>),
     // The task waits for name acquisition signal.
     Queued(#[allow(unused)] Task<()>),
+}
+
+static SERIAL_NUM_SEMAPHORE: Semaphore = Semaphore::new(1);
+
+// Make message creation and sending an atomic operation, using an async
+// semaphore if flatpak portal is detected to workaround an xdg-dbus-proxy issue:
+//
+// https://github.com/flatpak/xdg-dbus-proxy/issues/46
+async fn acquire_serial_num_semaphore() -> Option<SemaphorePermit<'static>> {
+    if is_flatpak() {
+        Some(SERIAL_NUM_SEMAPHORE.acquire().await)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

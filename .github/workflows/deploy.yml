@@ -25,13 +25,22 @@ jobs:
           mkdir mdbook
           curl -sSL $url | tar -xz --directory=./mdbook
           echo `pwd`/mdbook >> $GITHUB_PATH
+      - name: Install latest mdbook-toc
+        run: |
+          tag=$(curl 'https://api.github.com/repos/badboy/mdbook-toc/releases/latest' | jq -r '.tag_name')
+          url="https://github.com/badboy/mdbook-toc/releases/download/${tag}/mdbook-toc-${tag}-x86_64-unknown-linux-gnu.tar.gz"
+          mkdir mdbook-toc
+          curl -sSL $url | tar -xz --directory=./mdbook-toc
+          echo `pwd`/mdbook-toc >> $GITHUB_PATH
       - name: Build Books
         run: |
           mdbook build book
-          mkdir -p public/1.0
+          mkdir public
           cp -r ./book/book/* ./public
+          # link to the old name for service
+          ln -rs public/service.html public/server.html
       - name: Deploy 🚀
-        uses: JamesIves/github-pages-deploy-action@v4.6.1
+        uses: JamesIves/github-pages-deploy-action@v4.6.3
         with:
           branch: gh-pages # The branch the action should deploy to.
           folder: public # The folder the action should deploy.

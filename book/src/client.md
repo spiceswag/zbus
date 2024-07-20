@@ -1,5 +1,7 @@
 # Writing a client proxy
 
+<!-- toc -->
+
 In this chapter, we are going to see how to make low-level D-Bus method calls. Then we are going to
 dive in, and derive from a trait to make a convenient Rust binding. Finally, we will learn about
 *xmlgen*, a tool to help us generate a boilerplate trait from the XML of an introspected service.
@@ -348,7 +350,7 @@ async fn main() -> Result<()> {
 
     let proxy = SystemdManagerProxy::new(&connection).await?;
     println!("Host architecture: {}", proxy.architecture().await?);
-    println!("Environment:");
+    println!("Environment variables:");
     for env in proxy.environment().await? {
         println!("  {}", env);
     }

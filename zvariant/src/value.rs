@@ -12,7 +12,9 @@ use serde::{
         Deserialize, DeserializeSeed, Deserializer, Error, MapAccess, SeqAccess, Unexpected,
         Visitor,
     },
-    ser::{Serialize, SerializeSeq, SerializeStruct, SerializeTupleStruct, Serializer},
+    ser::{
+        Serialize, SerializeMap, SerializeSeq, SerializeStruct, SerializeTupleStruct, Serializer,
+    },
 };
 use static_assertions::assert_impl_all;
 
@@ -115,6 +117,9 @@ impl Hash for Value<'_> {
             Self::U32(inner) => inner.hash(state),
             Self::I64(inner) => inner.hash(state),
             Self::U64(inner) => inner.hash(state),
+            // To hold the +0.0 == -0.0 => hash(+0.0) == hash(-0.0) property.
+            // See https://doc.rust-lang.org/beta/std/hash/trait.Hash.html#hash-and-eq
+            Self::F64(inner) if *inner == 0. => 0f64.to_le_bytes().hash(state),
             Self::F64(inner) => inner.to_le_bytes().hash(state),
             Self::Str(inner) => inner.hash(state),
             Self::Signature(inner) => inner.hash(state),
@@ -336,6 +341,23 @@ impl<'a> Value<'a> {
         S: SerializeSeq,
     {
         serialize_value!(self serializer.serialize_element)
+    }
+
+    pub(crate) fn serialize_value_as_dict_key<S>(&self, serializer: &mut S) -> Result<(), S::Error>
+    where
+        S: SerializeMap,
+    {
+        serialize_value!(self serializer.serialize_key)
+    }
+
+    pub(crate) fn serialize_value_as_dict_value<S>(
+        &self,
+        serializer: &mut S,
+    ) -> Result<(), S::Error>
+    where
+        S: SerializeMap,
+    {
+        serialize_value!(self serializer.serialize_value)
     }
 
     #[cfg(feature = "gvariant")]

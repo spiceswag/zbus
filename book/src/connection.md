@@ -1,5 +1,7 @@
 # Establishing a connection
 
+<!-- toc -->
+
 The first thing you will have to do is to connect to a D-Bus bus or to a D-Bus peer. This is the
 entry point of the zbus API.
 
@@ -74,4 +76,4 @@ cargo feature of `zbus` is enabled.
 [`connection::Builder::address`]: https://docs.rs/zbus/4/zbus/connection/struct.Builder.html#method.address
 [dspec]: https://dbus.freedesktop.org/doc/dbus-specification.html#addresses
 
-[^bus-less] Unless you implemented them, none of the bus methods will exist.
+[^bus-less]: Unless you implemented them, none of the bus methods will exist.
